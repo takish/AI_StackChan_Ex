@@ -33,6 +33,8 @@
 #include "app/MuteMode.h"
 #include "app/AudioTone.h"
 #include "app/LedController.h"
+#include "llm/FunctionCall/tools/NewsWeatherTool.h"
+#include "llm/FunctionCall/tools/DateTimeTool.h"
 
 #define FASTLED_INTERNAL  // 起動バナーログを抑制
 #include <FastLED.h>
@@ -317,7 +319,7 @@ ModBase* init_mod(void)
   add_mod(new StatusMonitorMod());
   add_mod(new VolumeSettingMod());
   //add_mod(new EspNowRemoteMod());
-  //add_mod(new PomodoroMod(isOffline));
+  add_mod(new PomodoroMod(isOffline));
   //add_mod(new PhotoFrameMod(isOffline));
   //add_mod(new QRdisplayMod());
   mod = get_current_mod();
@@ -542,6 +544,17 @@ void setup()
       servo_home = true;
     }
   );
+
+  // Function Tool 登録（composition root）。
+  // robot->llm が ChatGPT/Gemini/ModuleLLMFncl のいずれかであれば、
+  // 内部の FunctionCall に伝播される。FC を持たない LLM では no-op。
+  if (robot && robot->llm) {
+    robot->llm->register_tool(new GetNewsTool());
+    robot->llm->register_tool(new GetWeatherTool());
+    robot->llm->register_tool(new GetDateTool());
+    robot->llm->register_tool(new GetTimeTool());
+    robot->llm->register_tool(new GetWeekTool());
+  }
 
   //mod設定
   init_mod();

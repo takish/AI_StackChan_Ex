@@ -120,10 +120,13 @@ void ChatGPT::load_role(){
   }
 
   /*
-   * FunctionCall.cppで定義したfunctionを挿入
+   * FunctionCall で定義された関数を挿入。
+   * static な json_Functions と、register_tool() で登録された Tool 群の
+   * schema を結合した完全配列を取得する。
    */
   SpiRamJsonDocument functionsDoc(1024*10);
-  DeserializationError error = deserializeJson(functionsDoc, json_Functions.c_str());
+  String functions_json = fnCall ? fnCall->combined_functions_json() : json_Functions;
+  DeserializationError error = deserializeJson(functionsDoc, functions_json.c_str());
   if (error) {
     Serial.println("load_role: JSON deserialization error");
   }

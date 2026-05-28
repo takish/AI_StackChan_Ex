@@ -21,9 +21,10 @@ public:
     ChatModuleLLMFncl(llm_param_t param);
     virtual void chat(String text, const char *base64_buf = NULL);
     String execChatGpt(String json_string, String* calledFunc);
-    
+
     virtual bool save_role();
     virtual void load_role();
+    virtual void register_tool(ToolBase* tool) override { if (fnCall) fnCall->register_tool(tool); }
 
     //
     // Function Calling
