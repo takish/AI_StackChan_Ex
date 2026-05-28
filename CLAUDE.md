@@ -101,6 +101,27 @@ PY32 が応答しないと `stackchan-arduino` の `Stackchan_servo.cpp` で `wh
 
 例: `firmware/doc/codex/steering/20260528-speech-bubble-improvements.md`
 
+## ⚠️ PR は必ず fork (takish/AI_StackChan_Ex) に出す
+
+このリポジトリは [ronron-gh/AI_StackChan_Ex](https://github.com/ronron-gh/AI_StackChan_Ex) からフォーク済み。
+**upstream（ronron-gh）には絶対に PR を出さない**。誤って本家にノイズ PR を作ってしまった事例あり（PR #35）。
+
+### ルール
+
+`gh pr create` を実行するときは **必ず `--repo takish/AI_StackChan_Ex` を明示する**：
+
+```bash
+gh pr create --repo takish/AI_StackChan_Ex --base main --head <branch> ...
+```
+
+`gh pr create` のデフォルト挙動は「親リポジトリ（upstream）」をターゲットにする可能性があるため、リポジトリ指定なしの実行は**禁止**。
+
+### 確認方法
+
+- ブランチ push 後に gh が表示する URL が `github.com/takish/AI_StackChan_Ex/pull/new/...` であることを確認
+- もし `github.com/ronron-gh/...` が表示されていたら誤検出。`--repo` を明示してやり直す
+- 本家への upstream contribution が必要な場合は、ユーザーに明示的に許可を取ってから
+
 ## レイヤードアーキテクチャ（厳守）
 
 `/layered-review` で検出した依存違反を整理し、PR #12 で driver / TTS / app 層の独立性を回復した。**今後追加するコードもこの構造を守ること**。
