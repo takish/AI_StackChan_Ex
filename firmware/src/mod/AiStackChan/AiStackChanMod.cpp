@@ -7,7 +7,7 @@
 #include <Avatar.h>
 #include "Robot.h"
 #include "llm/ChatGPT/ChatGPT.h"
-#include "llm/ChatGPT/FunctionCall.h"
+#include "llm/FunctionCall/FunctionCall.h"
 #include "driver/PlayMP3.h"
 #include "driver/WakeWord.h"
 #include "driver/ModuleLLM.h"

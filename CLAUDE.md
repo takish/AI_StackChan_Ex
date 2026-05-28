@@ -129,14 +129,35 @@ gh pr create --repo takish/AI_StackChan_Ex --base main --head <branch> ...
 ### レイヤー階層（下が低レベル、上が高レベル）
 
 ```
-L6  main.cpp / WebAPI.cpp        ← composition root / presentation
-L5  mod/                          ← use case / application
-L4  Robot, ServoCustom            ← orchestration
-L3  llm/, tts/, stt/, wakeword/   ← external service integration
-L2  driver/                       ← hardware drivers
-L1  share/, app/, rootCA/         ← utilities / value objects / state
-L0  外部ライブラリ                ← M5Unified, ESP-IDF, Arduino 等
+L6  main.cpp / WebAPI.cpp                    ← composition root / presentation
+L5  mod/                                      ← use case / application
+L4  Robot, ServoCustom                        ← orchestration
+L3  llm/{ChatGPT,Gemini,ModuleLLM,...}/       ← LLM provider 実装
+    tts/, stt/, wakeword/                     ← その他外部サービス統合
+    llm/FunctionCall/ + tools/                ← provider 横断の Function Tool
+L2  driver/                                   ← hardware drivers
+L1  share/, app/, rootCA/                     ← utilities / value objects / state
+L0  外部ライブラリ                            ← M5Unified, ESP-IDF, Arduino 等
 ```
+
+### FunctionCall の位置づけ（重要）
+
+`llm/FunctionCall/` は **特定の LLM provider に属さない共通機能**。ChatGPT / Gemini /
+ModuleLLMFncl から共有利用される。
+
+- `FunctionCall.{cpp,h}` — 既存の静的 schema 配列 + register_tool 用 registry
+- `ToolBase.h` — 新規 Tool の抽象基底（name / schema_json / execute の 3 メソッド）
+- `tools/` — 個別 Function の実装。1 機能 = 1 .cpp/.h ペア
+
+#### 新しい Function Tool を追加するときの手順
+
+1. `llm/FunctionCall/tools/MyTool.{cpp,h}` を作成
+2. `ToolBase` を継承し `name()` / `schema_json()` / `execute(args)` を実装
+3. `main.cpp` の composition root で `robot->llm->register_tool(new MyTool())` を呼ぶ
+4. 既存の `json_Functions` 文字列・`exec_calledFunc` の if-else cascade は触らない（将来削除予定）
+
+これで Tool は LLM provider に依存せず、自動的に ChatGPT / Gemini / ModuleLLMFncl
+すべてで利用可能になる。
 
 ### 依存ルール（DO）
 

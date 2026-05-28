@@ -8,7 +8,7 @@
 #include "../ChatHistory.h"
 #include "../LLMBase.h"
 #include "MCPClient.h"
-#include "FunctionCall.h"
+#include "../FunctionCall/FunctionCall.h"
 
 #define CHATGPT_PROMPT_MAX_SIZE   (1024*50)
 
@@ -28,9 +28,10 @@ public:
     virtual void chat(String text, const char *base64_buf = NULL);
     String execChatGpt(String json_string, String& calledFunc);
     String https_post_json(const char* url, const char* json_string, const char* root_ca);
-    
+
     virtual bool init_chat_doc(const char *data);
     virtual void load_role();
+    virtual void register_tool(ToolBase* tool) override { if (fnCall) fnCall->register_tool(tool); }
 };
 
 

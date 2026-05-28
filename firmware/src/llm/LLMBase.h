@@ -6,6 +6,8 @@
 #include "ChatHistory.h"
 #include "StackchanExConfig.h"
 
+class ToolBase;  // 前方宣言（llm/FunctionCall/ToolBase.h で定義）
+
 extern SpiRamJsonDocument chat_doc;       //LLMに送信するプロンプト（フォーマットは使用するLLMに従う）
 extern SpiRamJsonDocument systemPrompt;   //SPIFFSに保存するシステムプロンプト
 extern ChatHistory chatHistory;
@@ -49,6 +51,11 @@ public:
   virtual void chat(String text, const char *base64_buf = NULL) = 0;
   virtual bool init_chat_doc(const char *data) { return false; };  //TODO: LLMBaseで実装してもよいかも
   virtual void load_role() {};
+
+  // Plugin-style Function Tool 登録。
+  // ChatGPT / Gemini / ModuleLLMFncl で override し、それぞれの fnCall に委譲する。
+  // FC を持たない LLM (ModuleLLM 非 Fncl) ではデフォルトの no-op が呼ばれる。
+  virtual void register_tool(ToolBase* /*tool*/) {}
   bool save_userRole(String role);
   bool save_userInfo(String userInfo);
   String get_userRole();

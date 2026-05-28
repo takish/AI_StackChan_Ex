@@ -10,7 +10,7 @@
 #include <ArduinoJson.h>
 #include "SpiRamJsonDocument.h"
 #include "GeminiLive.h"
-#include "../ChatGPT/FunctionCall.h"    // GeminiとChatGPTのFunction Calling仕様は共通
+#include "../FunctionCall/FunctionCall.h"    // GeminiとChatGPTのFunction Calling仕様は共通
 //#include "MCPClient.h"
 #include "Robot.h"
 
@@ -151,10 +151,12 @@ static void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
                     }
                 }
 
-                // FunctionCall.cppで定義したfunctionをsession.updateに挿入
-                //
+                // FunctionCall で定義された関数を session.update に挿入。
+                // static な json_Functions と register_tool() で登録された
+                // Tool 群の schema を結合した完全配列を取得。
                 SpiRamJsonDocument functionsDoc(1024*10);
-                error = deserializeJson(functionsDoc, json_Functions.c_str());
+                String functions_json = p_this->fnCall ? p_this->fnCall->combined_functions_json() : json_Functions;
+                error = deserializeJson(functionsDoc, functions_json.c_str());
                 if (error) {
                     Serial.println("FunctionCall: JSON deserialization error");
                 }

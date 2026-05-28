@@ -169,7 +169,7 @@ ScheduleReminder::ScheduleReminder(int hour, int min, String _remind_text)
 
 }
 
-#include "llm/ChatGPT/FunctionCall.h"
+#include "llm/FunctionCall/FunctionCall.h"
 void ScheduleReminder::run(struct tm now_time)
 {
     int sched = sched_hour * 60 + sched_min;

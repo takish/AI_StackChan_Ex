@@ -8,7 +8,7 @@
 #include "RealtimeAiMod.h"
 #include <Avatar.h>
 #include "Robot.h"
-#include "llm/ChatGPT/FunctionCall.h"
+#include "llm/FunctionCall/FunctionCall.h"
 #include <WiFiClientSecure.h>
 #include "Scheduler.h"
 #include "MySchedule.h"

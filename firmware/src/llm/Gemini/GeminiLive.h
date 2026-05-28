@@ -9,7 +9,7 @@
 #include "SpiRamJsonDocument.h"
 #include "../ChatHistory.h"
 #include "../RealtimeLLMBase.h"
-#include "../ChatGPT/FunctionCall.h"
+#include "../FunctionCall/FunctionCall.h"
 #include <WebSocketsClient.h>
 
 
@@ -28,6 +28,7 @@ public:
     virtual void chat(String text, const char *base64_buf = NULL) {};   //dummy
     virtual String& buildInputAudioJson(String& jsonBuf, String& base64);
     virtual void load_role();
+    virtual void register_tool(ToolBase* tool) override { if (fnCall) fnCall->register_tool(tool); }
 };
 
 

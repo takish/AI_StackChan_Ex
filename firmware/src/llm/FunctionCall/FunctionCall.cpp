@@ -10,7 +10,7 @@
 #include "Scheduler.h"
 #include "StackchanExConfig.h" 
 #include "share/SDUtil.h"
-#include "MCPClient.h"
+#include "../ChatGPT/MCPClient.h"
 #include "llm/LLMBase.h"
 using namespace m5avatar;
 
@@ -257,6 +257,68 @@ void FunctionCall::init_func_call_settings(StackchanExConfig& system_config)
 
 }
 
+// Plugin-style tool 登録
+void FunctionCall::register_tool(ToolBase* tool) {
+  if (tool == nullptr) return;
+  _tools.push_back(tool);
+  Serial.printf("[FunctionCall] registered tool: %s (total=%d)\n",
+                tool->name(), (int)_tools.size());
+}
+
+// json_Functions（既存の static 配列）と登録済み tools の schema を
+// 1 つの JSON 配列に結合する。同名の関数が両方に存在する場合は登録 tool を
+// 優先し、json_Functions 側からは除外する（schema 重複防止）。
+//
+// 戻り値の形:  [ {<tool1 schema>}, {<tool2 schema>}, {<json_Functions の中身（重複除外）>...} ]
+String FunctionCall::combined_functions_json() const {
+  if (_tools.empty()) {
+    return json_Functions;
+  }
+
+  // 1) json_Functions を ArduinoJson でパースして配列にする
+  SpiRamJsonDocument doc(1024 * 12);
+  DeserializationError err = deserializeJson(doc, json_Functions);
+  if (err) {
+    Serial.printf("[FC] combined_functions_json: parse error: %s\n", err.c_str());
+    return json_Functions;  // フォールバック
+  }
+  JsonArray arr = doc.as<JsonArray>();
+  if (arr.isNull()) {
+    return json_Functions;
+  }
+
+  // 2) 出力 JSON を組み立て（重複しない元エントリ + 登録 tools）
+  String out;
+  out.reserve(2048);
+  out += "[";
+
+  bool first = true;
+  // 登録 tools を先に
+  for (ToolBase* t : _tools) {
+    if (!first) out += ",";
+    out += t->schema_json();
+    first = false;
+  }
+  // json_Functions のエントリ（登録 tool と同名は除外）
+  for (JsonObject fn : arr) {
+    const char* fname = fn["name"];
+    if (!fname) continue;
+    bool dup = false;
+    for (ToolBase* t : _tools) {
+      if (strcmp(t->name(), fname) == 0) { dup = true; break; }
+    }
+    if (dup) continue;
+    if (!first) out += ",";
+    // この 1 エントリを文字列化
+    String item;
+    serializeJson(fn, item);
+    out += item;
+    first = false;
+  }
+  out += "]";
+  return out;
+}
+
 
 String FunctionCall::exec_calledFunc(const char* name, const char* args){
   String response = "";
@@ -276,6 +338,15 @@ String FunctionCall::exec_calledFunc(const char* name, const char* args){
     avatar.setSpeechText("");
     avatar.setExpression(Expression::Neutral);
   }else{
+
+    // 1) 先に Plugin-style 登録済み tools をチェック
+    for (ToolBase* t : _tools) {
+      if (strcmp(t->name(), name) == 0) {
+        JsonObject obj = argsDoc.as<JsonObject>();
+        response = t->execute(obj);
+        goto END;
+      }
+    }
 
     //関数名がいずれかのMCPサーバに属するかを検索し、ヒットしたらリクエストを送信する
     for(int s=0; s < _param.llm_conf.nMcpServers; s++){
