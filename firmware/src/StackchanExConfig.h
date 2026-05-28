@@ -92,6 +92,12 @@ typedef struct WifiFallbackConf {
     String password;
 } wifi_fallback_s;
 
+// Jina (s.jina.ai / r.jina.ai) は 2024 年後半より認証必須化された。
+// SD カードの SC_ExConfig.yaml 経由でキーを供給する（git にコミットされない）。
+typedef struct JinaConf {
+    String api_key;
+} jina_s;
+
 typedef struct ExConfig {
     llm_s llm;
     tts_s tts;
@@ -101,6 +107,7 @@ typedef struct ExConfig {
     moduleLLM_s moduleLLM;
     conversation_s conversation;
     wifi_fallback_s wifi_fallback;
+    jina_s jina;
 } ex_config_s;
 
 

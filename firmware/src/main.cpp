@@ -33,8 +33,9 @@
 #include "app/MuteMode.h"
 #include "app/AudioTone.h"
 #include "app/LedController.h"
-#include "llm/FunctionCall/tools/NewsWeatherTool.h"
+#include "llm/FunctionCall/tools/WebSearchTool.h"
 #include "llm/FunctionCall/tools/DateTimeTool.h"
+#include "llm/FunctionCall/tools/JinaSearch.h"
 
 #define FASTLED_INTERNAL  // 起動バナーログを抑制
 #include <FastLED.h>
@@ -549,11 +550,19 @@ void setup()
   // robot->llm が ChatGPT/Gemini/ModuleLLMFncl のいずれかであれば、
   // 内部の FunctionCall に伝播される。FC を持たない LLM では no-op。
   if (robot && robot->llm) {
-    robot->llm->register_tool(new GetNewsTool());
-    robot->llm->register_tool(new GetWeatherTool());
+    // s.jina.ai は認証必須。SD カードの SC_ExConfig.yaml から取得したキーを
+    // JinaSearch 内の static に注入する。
+    jina_set_api_key(system_config.getExConfig().jina.api_key);
+
+    robot->llm->register_tool(new WebSearchTool());
     robot->llm->register_tool(new GetDateTool());
     robot->llm->register_tool(new GetTimeTool());
     robot->llm->register_tool(new GetWeekTool());
+
+    // 登録した tool schema を含めて InitBuffer を再生成する。
+    // ChatGPT のコンストラクタ末尾で load_role() が一度走るが、その時点では
+    // register_tool() がまだ呼ばれていないため、tool schema が反映されない。
+    robot->llm->load_role();
   }
 
   //mod設定
