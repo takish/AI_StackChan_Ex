@@ -9,7 +9,7 @@
 #include "driver/ModuleLLM.h"
 #include "ChatModuleLLMFncl.h"
 #include "../ChatHistory.h"
-#include "../ChatGPT/FunctionCall.h"
+#include "../FunctionCall/FunctionCall.h"
 #include "Robot.h"
 
 using namespace m5avatar;

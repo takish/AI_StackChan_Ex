@@ -8,7 +8,7 @@
 #include "SpiRamJsonDocument.h"
 #include "../ChatHistory.h"
 #include "../LLMBase.h"
-#include "../ChatGPT/FunctionCall.h"
+#include "../FunctionCall/FunctionCall.h"
 
 extern String InitBuffer;
 

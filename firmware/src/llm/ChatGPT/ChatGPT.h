@@ -8,7 +8,7 @@
 #include "../ChatHistory.h"
 #include "../LLMBase.h"
 #include "MCPClient.h"
-#include "FunctionCall.h"
+#include "../FunctionCall/FunctionCall.h"
 
 #define CHATGPT_PROMPT_MAX_SIZE   (1024*50)
 

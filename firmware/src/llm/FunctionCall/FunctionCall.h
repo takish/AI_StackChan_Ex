@@ -3,8 +3,8 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include "StackchanExConfig.h" 
-#include "MCPClient.h"
+#include "StackchanExConfig.h"
+#include "../ChatGPT/MCPClient.h"
 #include "llm/LLMBase.h"
 
 //#define USE_EXTENSION_FUNCTIONS

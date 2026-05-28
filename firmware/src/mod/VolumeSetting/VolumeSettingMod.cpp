@@ -5,7 +5,7 @@
 #include "Scheduler.h"
 #include "MySchedule.h"
 #include "llm/ChatGPT/ChatGPT.h"
-#include "llm/ChatGPT/FunctionCall.h"
+#include "llm/FunctionCall/FunctionCall.h"
 #include <WiFiClientSecure.h>
 #include <Avatar.h>
 

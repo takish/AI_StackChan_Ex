@@ -9,7 +9,7 @@
 #include "SpiRamJsonDocument.h"
 #include "../ChatHistory.h"
 #include "../RealtimeLLMBase.h"
-#include "../ChatGPT/FunctionCall.h"
+#include "../FunctionCall/FunctionCall.h"
 #include <WebSocketsClient.h>
 
 

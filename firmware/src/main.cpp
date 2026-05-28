@@ -44,7 +44,7 @@
 #include <ESP8266FtpServer.h>
 
 #include "llm/ChatGPT/ChatGPT.h"
-#include "llm/ChatGPT/FunctionCall.h"
+#include "llm/FunctionCall/FunctionCall.h"
 #include "llm/ChatHistory.h"
 #include "llm/Gemini/GeminiLive.h"
 

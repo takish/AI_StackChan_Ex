@@ -10,7 +10,7 @@
 #include <ArduinoJson.h>
 #include "SpiRamJsonDocument.h"
 #include "GeminiLive.h"
-#include "../ChatGPT/FunctionCall.h"    // GeminiとChatGPTのFunction Calling仕様は共通
+#include "../FunctionCall/FunctionCall.h"    // GeminiとChatGPTのFunction Calling仕様は共通
 //#include "MCPClient.h"
 #include "Robot.h"
 

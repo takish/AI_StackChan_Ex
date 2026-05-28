@@ -10,7 +10,7 @@
 #include "Scheduler.h"
 #include "StackchanExConfig.h" 
 #include "share/SDUtil.h"
-#include "MCPClient.h"
+#include "../ChatGPT/MCPClient.h"
 #include "llm/LLMBase.h"
 using namespace m5avatar;
 

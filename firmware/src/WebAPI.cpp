@@ -8,7 +8,7 @@
 #include "WebAPI.h"
 #include "Avatar.h"
 #include "llm/ChatGPT/ChatGPT.h"
-#include "llm/ChatGPT/FunctionCall.h"
+#include "llm/FunctionCall/FunctionCall.h"
 #include "Robot.h"
 #include "share/Version.h"
 #include "share/PersonalityPresets.h"

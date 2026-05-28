@@ -9,7 +9,7 @@
 //#include "driver/WakeWord.h"
 #include "driver/PlayMP3.h"
 #include <WiFiClientSecure.h>
-#include "llm/ChatGPT/FunctionCall.h"  //APP_DATA_PATHのため
+#include "llm/FunctionCall/FunctionCall.h"  //APP_DATA_PATHのため
 
 using namespace m5avatar;
 
