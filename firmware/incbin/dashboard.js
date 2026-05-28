@@ -177,9 +177,113 @@
     });
   }
 
+  // Wakeword カード
+  async function loadWakeword() {
+    try {
+      const res = await fetch('/api/wakeword');
+      if (!res.ok) return;
+      const d = await res.json();
+      const sel = document.getElementById('ww_type');
+      const kw  = document.getElementById('ww_keyword');
+      if (sel) sel.value = String(d.type);
+      if (kw)  kw.value  = d.keyword || '';
+    } catch (e) {
+      console.error('Failed to load wakeword:', e);
+    }
+  }
+
+  function setupWakeword() {
+    const btn = document.getElementById('ww_save');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      const type = document.getElementById('ww_type').value;
+      const keyword = document.getElementById('ww_keyword').value.trim();
+      const status = document.getElementById('ww_status');
+      if (!keyword) {
+        status.className = 'ww-status err';
+        status.textContent = 'Keyword を入力してください';
+        return;
+      }
+      if (!confirm('Wakeword を変更して再起動するッピ？\n( type=' + type + ', keyword="' + keyword + '" )')) return;
+      btn.disabled = true;
+      status.className = 'ww-status';
+      status.textContent = '保存中...';
+      try {
+        const url = '/api/wakeword?type=' + encodeURIComponent(type) + '&keyword=' + encodeURIComponent(keyword);
+        const res = await fetch(url, { method: 'POST' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        status.className = 'ww-status ok';
+        status.textContent = '保存完了。再起動します...';
+        await fetch('/api/restart', { method: 'POST' });
+        setTimeout(() => {
+          status.textContent = '再起動コマンド送信済み。30 秒後にリロード';
+          btn.disabled = false;
+        }, 1000);
+      } catch (e) {
+        status.className = 'ww-status err';
+        status.textContent = 'エラー: ' + e.message;
+        btn.disabled = false;
+      }
+    });
+    loadWakeword();
+  }
+
+  // Personality preset カード
+  function detectActivePreset(presets, currentRole) {
+    if (!currentRole) return null;
+    for (const p of presets) {
+      if (p.role && currentRole.indexOf(p.role.substring(0, 30)) >= 0) return p.id;
+    }
+    return null;
+  }
+
+  async function loadPersonality() {
+    try {
+      const res = await fetch('/api/personality');
+      if (!res.ok) return;
+      const d = await res.json();
+      const grid = document.getElementById('pp_grid');
+      if (!grid) return;
+      grid.innerHTML = '';
+      d.presets.forEach(p => {
+        const btn = document.createElement('button');
+        btn.className = 'pp-preset';
+        btn.title = p.description;
+        btn.dataset.id = p.id;
+        btn.innerHTML = '<span class="pp-emoji">' + p.emoji + '</span>' + p.name;
+        btn.addEventListener('click', () => applyPreset(p));
+        grid.appendChild(btn);
+      });
+      const cur = document.getElementById('pp_current');
+      if (cur) cur.textContent = d.current_role ? '現在: ' + (d.current_role.substring(0, 80) + (d.current_role.length > 80 ? '…' : '')) : '(未設定)';
+    } catch (e) {
+      console.error('Failed to load personality:', e);
+    }
+  }
+
+  async function applyPreset(preset) {
+    const cur = document.getElementById('pp_current');
+    if (cur) cur.textContent = '適用中: ' + preset.name + '...';
+    try {
+      const res = await fetch('/api/personality?id=' + encodeURIComponent(preset.id), { method: 'POST' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const d = await res.json();
+      if (cur) cur.textContent = '現在: ' + (d.current_role.substring(0, 80) + (d.current_role.length > 80 ? '…' : ''));
+      // ハイライト切替
+      document.querySelectorAll('.pp-preset').forEach(b => {
+        b.classList.toggle('active', b.dataset.id === preset.id);
+      });
+    } catch (e) {
+      console.error('Failed to apply preset:', e);
+      if (cur) cur.textContent = 'エラー: ' + e.message;
+    }
+  }
+
   setupMuteToggle();
   setupVolumeSlider();
   setupActions();
+  setupWakeword();
+  loadPersonality();
   refresh();
   setInterval(refresh, 5000);
 })();

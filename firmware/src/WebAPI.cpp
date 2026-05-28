@@ -11,6 +11,7 @@
 #include "llm/ChatGPT/FunctionCall.h"
 #include "Robot.h"
 #include "share/Version.h"
+#include "share/PersonalityPresets.h"
 
 using namespace m5avatar;
 extern Avatar avatar;
@@ -152,6 +153,8 @@ IMPORT_FILE(.rodata, "dashboard.html", dashboard_html);
 IMPORT_FILE(.rodata, "dashboard.js", dashboard_js);
 IMPORT_FILE(.rodata, "settings.html", settings_html);
 IMPORT_FILE(.rodata, "settings.js", settings_js);
+IMPORT_FILE(.rodata, "present.html", present_html);
+IMPORT_FILE(.rodata, "present.js", present_js);
 
 
 void handleRoot() {
@@ -366,6 +369,178 @@ void handle_volume() {
 
   uint8_t cur = robot ? robot->spk_volume : 0;
   String body = String("{\"volume\":") + cur + ",\"max\":255}";
+  server.send(200, "application/json", body);
+}
+
+// 前方宣言（json_escape は後段で定義）
+static String json_escape(const String& s);
+
+// YAML 内の wakeword.type と wakeword.keyword を書き換える小ヘルパ。
+// 行ベースで安全に編集。`wakeword:` ブロック内（2 スペースインデント）の
+// `type:` と `keyword:` を新しい値で置換し、ブロックが無ければ末尾に追加。
+static String update_wakeword_in_yaml(const String& yaml, int new_type, const String& new_keyword) {
+  String out;
+  out.reserve(yaml.length() + 64);
+  bool in_wakeword = false;
+  bool type_replaced = false;
+  bool keyword_replaced = false;
+
+  int start = 0;
+  while (start <= (int)yaml.length()) {
+    int eol = yaml.indexOf('\n', start);
+    String line = (eol < 0) ? yaml.substring(start) : yaml.substring(start, eol);
+
+    String trimmed = line; trimmed.trim();
+    if (trimmed.startsWith("wakeword:")) {
+      in_wakeword = true;
+      out += line;
+      if (eol >= 0) out += "\n";
+      if (eol < 0) break;
+      start = eol + 1;
+      continue;
+    }
+
+    if (in_wakeword) {
+      // インデントが 0 or トップレベルキーに戻ったらブロック終了
+      bool block_end = !line.isEmpty() && line.charAt(0) != ' ' && line.charAt(0) != '\t';
+      if (block_end) {
+        // ブロック内に type / keyword が無ければ追加してから抜ける
+        if (!type_replaced) {
+          out += "  type: " + String(new_type) + "\n";
+          type_replaced = true;
+        }
+        if (!keyword_replaced) {
+          out += "  keyword: \"" + new_keyword + "\"\n";
+          keyword_replaced = true;
+        }
+        in_wakeword = false;
+      } else {
+        // ブロック内の type / keyword を置換
+        if (trimmed.startsWith("type:")) {
+          out += "  type: " + String(new_type);
+          if (eol >= 0) out += "\n";
+          type_replaced = true;
+          if (eol < 0) break;
+          start = eol + 1;
+          continue;
+        }
+        if (trimmed.startsWith("keyword:")) {
+          out += "  keyword: \"" + new_keyword + "\"";
+          if (eol >= 0) out += "\n";
+          keyword_replaced = true;
+          if (eol < 0) break;
+          start = eol + 1;
+          continue;
+        }
+      }
+    }
+
+    out += line;
+    if (eol >= 0) out += "\n";
+    if (eol < 0) break;
+    start = eol + 1;
+  }
+
+  // wakeword ブロック自体が無かった場合は末尾に追加
+  if (!type_replaced || !keyword_replaced) {
+    if (!out.endsWith("\n")) out += "\n";
+    out += "\nwakeword:\n";
+    out += "  type: " + String(new_type) + "\n";
+    out += "  keyword: \"" + new_keyword + "\"\n";
+  }
+
+  return out;
+}
+
+// Wakeword 設定: GET で現在値、POST で更新（SD YAML を上書き、即時反映には再起動必要）
+void handle_wakeword() {
+  // POST or GET ?type=...&keyword=... で更新
+  bool changed = false;
+  if (server.hasArg("type") || server.hasArg("keyword")) {
+    int new_type = server.hasArg("type") ? server.arg("type").toInt()
+                                          : (robot ? robot->m_config.getExConfig().wakeword.type : 0);
+    if (new_type < 0) new_type = 0;
+    if (new_type > 1) new_type = 1;
+    String new_keyword = server.hasArg("keyword") ? server.arg("keyword")
+                                                   : (robot ? robot->m_config.getExConfig().wakeword.keyword : String(""));
+    // 改行・引用符を除去
+    new_keyword.replace("\"", "");
+    new_keyword.replace("\n", "");
+    new_keyword.replace("\r", "");
+
+    const char* path = "/app/AiStackChanEx/SC_ExConfig.yaml";
+    File f = SD.open(path, FILE_READ);
+    if (!f) { server.send(500, "text/plain", "SC_ExConfig.yaml not found"); return; }
+    String yaml;
+    yaml.reserve(f.size() + 16);
+    while (f.available()) yaml += (char)f.read();
+    f.close();
+
+    String new_yaml = update_wakeword_in_yaml(yaml, new_type, new_keyword);
+
+    File w = SD.open(path, FILE_WRITE);
+    if (!w) { server.send(500, "text/plain", "open for write failed"); return; }
+    w.print(new_yaml);
+    w.close();
+    Serial.printf("Wakeword updated via Web: type=%d keyword=%s\n", new_type, new_keyword.c_str());
+    changed = true;
+  }
+
+  int cur_type = robot ? robot->m_config.getExConfig().wakeword.type : 0;
+  String cur_kw = robot ? robot->m_config.getExConfig().wakeword.keyword : String("");
+
+  String body = "{";
+  body += "\"type\":" + String(cur_type) + ",";
+  body += "\"keyword\":\"" + json_escape(cur_kw) + "\",";
+  body += "\"changed\":" + String(changed ? "true" : "false") + ",";
+  body += "\"types\":[\"SimpleVox\",\"ModuleLLM-KWS\"],";
+  body += "\"restart_required\":" + String(changed ? "true" : "false");
+  body += "}";
+  server.send(200, "application/json", body);
+}
+
+// 性格プリセット: GET でリスト + 現在の userRole、POST ?id=... で適用
+void handle_personality() {
+  // 適用
+  bool applied = false;
+  String applied_id = "";
+  if (server.hasArg("id")) {
+    String id = server.arg("id");
+    const PersonalityPreset* p = PersonalityPresets::find_by_id(id.c_str());
+    if (!p) { server.send(400, "text/plain", "unknown preset id"); return; }
+    if (!robot || !robot->llm) { server.send(500, "text/plain", "robot/llm not ready"); return; }
+    if (!robot->llm->save_userRole(String(p->role))) {
+      server.send(500, "text/plain", "save_userRole failed");
+      return;
+    }
+    applied = true;
+    applied_id = id;
+    Serial.printf("Personality preset applied: %s\n", id.c_str());
+  }
+
+  // レスポンス: list + current
+  String cur_role = (robot && robot->llm) ? robot->llm->get_userRole() : String("");
+  String body = "{\"presets\":[";
+  const PersonalityPreset* p = PersonalityPresets::list();
+  bool first = true;
+  while (p->id != nullptr) {
+    if (!first) body += ",";
+    body += "{";
+    body += "\"id\":\""; body += p->id; body += "\",";
+    body += "\"name\":\""; body += p->name; body += "\",";
+    body += "\"emoji\":\""; body += p->emoji; body += "\",";
+    body += "\"description\":\""; body += p->description; body += "\"";
+    body += "}";
+    first = false;
+    p++;
+  }
+  body += "],";
+  body += "\"current_role\":\""; body += json_escape(cur_role); body += "\",";
+  body += "\"applied\":" + String(applied ? "true" : "false");
+  if (applied) {
+    body += ",\"applied_id\":\""; body += applied_id; body += "\"";
+  }
+  body += "}";
   server.send(200, "application/json", body);
 }
 
@@ -713,6 +888,10 @@ void init_web_server(void)
   server.on("/api/mute", HTTP_POST, handle_mute);
   server.on("/api/volume", HTTP_GET, handle_volume);
   server.on("/api/volume", HTTP_POST, handle_volume);
+  server.on("/api/wakeword", HTTP_GET, handle_wakeword);
+  server.on("/api/wakeword", HTTP_POST, handle_wakeword);
+  server.on("/api/personality", HTTP_GET, handle_personality);
+  server.on("/api/personality", HTTP_POST, handle_personality);
   // アクション系（テスト用）
   server.on("/api/led", HTTP_POST, handle_led_test);
   server.on("/api/led", HTTP_GET, handle_led_test);     // ブラウザから直接叩けるよう GET も許可
@@ -731,6 +910,13 @@ void init_web_server(void)
   });
   server.on("/settings.js", []() {
     server.send_P(200, "application/javascript", (const char*)settings_js, (size_t)sizeof_settings_js);
+  });
+  // Present ページ（テキスト → 発話）
+  server.on("/present.html", []() {
+    server.send_P(200, "text/html", (const char*)present_html, (size_t)sizeof_present_html);
+  });
+  server.on("/present.js", []() {
+    server.send_P(200, "application/javascript", (const char*)present_js, (size_t)sizeof_present_js);
   });
 
 
