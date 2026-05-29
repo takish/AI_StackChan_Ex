@@ -97,15 +97,14 @@ static void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
       // Gemini Liveは応答の音声が長くなると途中でDisconnectすることがあるため、ストリーミング再生の終了処理を行う。
       // ※Disconnectの原因究明までの暫定処置
       if(p_this->speaking == true){
-        while (M5.Speaker.isPlaying()) { vTaskDelay(1); }
+        p_this->_flushPlayout = true;
+        while (p_this->audioRingAvailable() > 0 || M5.Speaker.isPlaying()) { vTaskDelay(1); }
         M5.Speaker.end();
         M5.Mic.begin();
         exitMutexAudio();
         p_this->startRealtimeRecord();
 
-        for(int i=0; i<2; i++){
-            memset(p_this->audioBuf[i], 0, 100 * 1024);
-        }
+        p_this->audioRingReset();   // 次の応答に備えてリセット
         p_this->speaking = false;
       }
 
@@ -215,6 +214,8 @@ static void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
                     enterMutexAudio();
                     M5.Mic.end();
                     M5.Speaker.begin();
+                    p_this->audioRingReset();      // 残量クリア & プリバッファやり直し
+                    p_this->_flushPlayout = false;
                     p_this->speaking = true;
 #else
                     p_this->speaking = true;
@@ -263,15 +264,16 @@ static void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
                 Serial.printf("[WSc] turnComplete: %s\n", payload);
 
 #ifndef REALTIME_API_WITH_TTS
-                while (M5.Speaker.isPlaying()) { vTaskDelay(1); }
+                // 残りを全部吐き出すよう consumer に指示し、リングが空 かつ スピーカー
+                // 再生完了になるまで待ってから I2S をマイクへ戻す(末尾切れ防止)。
+                p_this->_flushPlayout = true;
+                while (p_this->audioRingAvailable() > 0 || M5.Speaker.isPlaying()) { vTaskDelay(1); }
                 M5.Speaker.end();
                 M5.Mic.begin();
                 exitMutexAudio();
                 p_this->startRealtimeRecord();
 
-                for(int i=0; i<2; i++){
-                    memset(p_this->audioBuf[i], 0, 100 * 1024);
-                }
+                p_this->audioRingReset();   // 次の応答に備えてリセット
                 p_this->speaking = false;
 #else
                 p_this->response_done = true;

@@ -378,6 +378,11 @@ void setup()
   cfg.serial_baudrate = 115200;   //M5Unified 0.1.17からデフォルトが0になったため設定
   M5.begin(cfg);
   M5.Display.setBrightness(255);  // バックライト最大（CoreS3で点灯しない問題への対処）
+
+  // Realtime API 中は CPU0 が WiFi の音声バースト受信で飽和し、CPU0 の IDLE タスクが
+  // 規定時間動けず Task Watchdog がリブートを起こす。これはストリーミング負荷では
+  // 想定内のため、CPU0 の IDLE WDT 監視を解除する（Arduino+streaming の定番対処）。
+  disableCore0WDT();
   // LED watchdog（TTS等で main loop がブロックしても自動消灯する）。
   // 実 LED ハードウェア (PY32 IOExpander) は robot 初期化後に callback で接続するため、
   // ここでは watchdog タスクのみ起動し、init は robot 用意後に行う。
@@ -554,7 +559,18 @@ void setup()
     // JinaSearch 内の static に注入する。
     jina_set_api_key(system_config.getExConfig().jina.api_key);
 
+#ifndef REALTIME_API
+    // WebSearchTool は s.jina.ai への HTTPS 通信を行う。
+    // Realtime API（Gemini Live / OpenAI Realtime）では音声を I2S で常時
+    // 全二重ストリーミングしているため、ツール実行中の TLS ハンドシェイクが
+    // ハードウェア SHA の共有 GDMA を要求し、I2S が掴んでいる GDMA と衝突して
+    // esp_crypto_shared_gdma_start でパニック → 再起動ループになる
+    // （ESP32-S3 の I2S × mbedTLS GDMA 競合。Arduino framework のため
+    //   CONFIG_MBEDTLS_HARDWARE_SHA をビルドで無効化できない）。
+    // Gemini Live は setup の googleSearch グラウンディングで Web 検索を
+    // サーバー側で賄えるため、Realtime では本ツールを登録しない。
     robot->llm->register_tool(new WebSearchTool());
+#endif
     robot->llm->register_tool(new GetDateTool());
     robot->llm->register_tool(new GetTimeTool());
     robot->llm->register_tool(new GetWeekTool());
