@@ -42,3 +42,10 @@ wifi_fallback:
   ssid: ""
   password: ""
 
+# Jina API キー（ニュース・天気・Web検索で利用）
+#   2024年後半より s.jina.ai は認証必須化された。
+#   キーは https://jina.ai/ で取得（無料枠あり）。
+#   空のままだと get_news / get_weather は認証エラーを返す。
+jina:
+  api_key: ""
+

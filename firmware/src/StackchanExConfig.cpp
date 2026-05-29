@@ -91,7 +91,18 @@ void StackchanExConfig::loadExtendConfig(fs::FS& fs, const char* yaml_filename, 
             setExtendSettings(doc);
         }
 
-        serializeJsonPretty(doc, Serial);
+        // シリアル出力前にシークレットをマスク（API キー、パスワード等が
+        // 平文でログに残るとセキュリティリスクになるため）。
+        DynamicJsonDocument dump = doc;
+        if (dump["jina"]["api_key"].is<const char*>() &&
+            strlen(dump["jina"]["api_key"]) > 0) {
+            dump["jina"]["api_key"] = "***MASKED***";
+        }
+        if (dump["wifi_fallback"]["password"].is<const char*>() &&
+            strlen(dump["wifi_fallback"]["password"]) > 0) {
+            dump["wifi_fallback"]["password"] = "***MASKED***";
+        }
+        serializeJsonPretty(dump, Serial);
         M5_LOGI("");
         printExtParameters();
 
@@ -148,6 +159,9 @@ void StackchanExConfig::setExtendSettings(DynamicJsonDocument doc)
     _ex_parameters.wifi_fallback.ssid     = doc["wifi_fallback"]["ssid"].as<String>();
     _ex_parameters.wifi_fallback.password = doc["wifi_fallback"]["password"].as<String>();
 
+    // Jina API キー（ニュース・天気・Web検索で利用）
+    _ex_parameters.jina.api_key = doc["jina"]["api_key"].as<String>();
+
 }
 
 void StackchanExConfig::printExtParameters(void)
@@ -178,5 +192,8 @@ void StackchanExConfig::printExtParameters(void)
 
     M5_LOGI("module llm rxPin: %d", _ex_parameters.moduleLLM.rxPin);
     M5_LOGI("module llm txPin: %d", _ex_parameters.moduleLLM.txPin);
-    
+
+    // API キーは長さのみ表示（中身はログに残さない）
+    M5_LOGI("jina api_key length: %d", (int)_ex_parameters.jina.api_key.length());
+
 }
