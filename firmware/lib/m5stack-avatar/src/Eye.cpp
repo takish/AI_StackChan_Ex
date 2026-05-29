@@ -3,6 +3,8 @@
 // license information.
 
 #include "Eye.h"
+#include <Arduino.h>
+#include <math.h>
 
 namespace m5avatar {
 
@@ -20,6 +22,31 @@ void Eye::draw(M5Canvas *spi, BoundingRect rect, DrawContext *ctx) {
   uint32_t offsetY = g.getVertical() * 3;
   uint16_t primaryColor = ctx->getColorDepth() == 1 ? 1 : ctx->getColorPalette()->get(COLOR_PRIMARY);
   uint16_t backgroundColor = ctx->getColorDepth() == 1 ? 0 : ctx->getColorPalette()->get(COLOR_BACKGROUND);
+
+  // 酔い目（ぐるぐる目）: 渦巻きを描く。millis() で位相を進めて顔の再描画ごとに回転させる
+  if (exp == Expression::Dizzy) {
+    int cx = x + offsetX;
+    int cy = y + offsetY;
+    // 標準の目（r=8）より大きく描く。左右の目の間隔が広いので半径 r*4 程度まで広げられる
+    float maxR = r * 4.0f;
+    // 左右で回転方向を逆にして自然に見せる
+    float dir = isLeft ? 1.0f : -1.0f;
+    float base = (millis() / 130.0f) * dir;
+    const int segs = 72;
+    const float turns = 3.0f;
+    float px = cx, py = cy;
+    for (int i = 1; i <= segs; i++) {
+      float t = (float)i / segs;
+      float ang = base + t * turns * 2.0f * (float)PI;
+      float rad = t * maxR;
+      float nx = cx + rad * cosf(ang);
+      float ny = cy + rad * sinf(ang);
+      spi->drawWideLine(px, py, nx, ny, 2.4f, primaryColor);
+      px = nx;
+      py = ny;
+    }
+    return;
+  }
 
   if (openRatio > 0) {
     // ハート目: 円の代わりにハートマークを描く

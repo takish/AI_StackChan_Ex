@@ -27,6 +27,7 @@
 #include "driver/PlayMP3.h"   //lipSync
 #include "driver/TapDetect.h"
 #include "driver/HeadPetDetect.h"
+#include "driver/ShakeDetect.h"
 #include "driver/IdleMotion.h"
 #include "share/Phrases.h"
 #include "share/SerialConfig.h"
@@ -92,6 +93,16 @@ static const uint32_t HEAD_PET_DURATION_MS = 3000;
 void head_pet_trigger();
 void head_pet_update();
 
+// シェイク → 酔う（ぐるぐる目）リアクションの状態。実関数は avatar 宣言後に定義
+static bool dizzy_active = false;
+static unsigned long dizzy_start_ms = 0;
+static unsigned long dizzy_end_ms = 0;
+static unsigned long dizzy_sway_tick = 0;
+static bool dizzy_sway_phase = false;
+static const uint32_t DIZZY_DURATION_MS = 6000;
+void dizzy_trigger();
+void dizzy_update();
+
 
 // NTP接続情報　NTP connection information.
 const char* NTPSRV      = "ntp.jst.mfeed.ad.jp";    // NTPサーバーアドレス NTP server address.
@@ -142,6 +153,70 @@ void head_pet_update() {
       robot->servo->moveTo(0, 0, 400);
     }
     head_pet_active = false;
+  }
+}
+
+// シェイク → 酔う（ぐるぐる目）リアクション実装本体
+// 公式 stackchan の ImuEventModifier 相当。m5stack-avatar には渦巻き目が無いため、
+// setGaze() を円運動させて目玉をぐるぐる回すことで「酔い」を表現する。
+void dizzy_trigger() {
+  notify_activity();
+  // 演出中にアイドル動作が割り込まないよう停止
+  idle_motion_pause();
+  avatar.setExpression(Expression::Dizzy);    // ぐるぐる目
+  avatar.setGaze(0.0f, 0.0f);
+  avatar.setSpeechFont(&fonts::efontJA_16);
+  avatar.setSpeechText("ぐるぐる…");
+  if (robot && robot->servo) {
+    robot->servo->fillLeds(0x40, 0xC0, 0x40);   // 緑（気分が悪い色）
+    robot->servo->moveTo(0, 0, 300);
+  }
+  // 激しいシェイクは頭撫で検出器も同時に発火させるため、保留分を破棄し、復帰まで抑制
+  headPetDetected();                            // 保留中の頭撫でフラグを消費して捨てる
+  headPetMaskFor(DIZZY_DURATION_MS + 800);
+  dizzy_active = true;
+  dizzy_start_ms = millis();
+  dizzy_end_ms = dizzy_start_ms + DIZZY_DURATION_MS;
+  dizzy_sway_tick = 0;
+  dizzy_sway_phase = false;
+}
+
+void dizzy_update() {
+  if (!dizzy_active) return;
+
+  uint32_t now = millis();
+  if (now > dizzy_end_ms) {
+    // 全状態を平常に復帰
+    avatar.setExpression(Expression::Neutral);
+    avatar.setSpeechText("");
+    avatar.setGaze(0.0f, 0.0f);
+    avatar.setMouthOpenRatio(0.0f);
+    avatar.setRotation(0.0f);
+    if (robot && robot->servo) {
+      robot->servo->clearLeds();
+      robot->servo->moveTo(0, 0, 400);
+    }
+    idle_motion_resume();
+    dizzy_active = false;
+    return;
+  }
+
+  // 酔っている間は表情をロック（mod の idle / 顔検出 / ウェイクワードが横から
+  // setExpression で上書きしても、毎フレーム取り返してサーボの揺れと同期させる）
+  avatar.setExpression(Expression::Dizzy);
+
+  // ぐるぐる目の回転は Eye::draw 側が millis() で行う。ここでは口と頭のふらつきを付ける
+  float theta = (float)(now - dizzy_start_ms) * (2.0f * (float)PI / 600.0f);
+  // 口を気持ち悪そうに揺らす
+  avatar.setMouthOpenRatio(0.3f + 0.3f * sinf(theta * 0.5f));
+  // 頭を小さくふらつかせる
+  avatar.setRotation(0.12f * sinf(theta * 0.5f));
+
+  // サーボを 600ms 毎に小さく左右へ振ってふらつき感を出す
+  if (robot && robot->servo && now >= dizzy_sway_tick) {
+    dizzy_sway_tick = now + 600;
+    dizzy_sway_phase = !dizzy_sway_phase;
+    robot->servo->moveTo(dizzy_sway_phase ? 15 : -15, 5, 500);
   }
 }
 
@@ -635,6 +710,9 @@ void setup()
   // IMU 加速度センサ経由の頭撫で検出（M5StackChan キット時のみ有効、CoreS3-SE は IMU 非搭載でスキップ）
   invokeHeadPetDetectTask();
 
+  // IMU 加速度センサ経由の激しいシェイク検出（→ 酔うリアクション）。IMU 非搭載機では発火しない
+  invokeShakeDetectTask();
+
   // アイドル時のランダム動作（公式 stackchan の IdleMotionModifier を参考に）
   // driver 層から Robot.h を直接 include しないよう、callback を注入する形式。
   idle_motion_init(
@@ -737,12 +815,17 @@ void loop()
       }
     }
   }
-  // IMU 加速度で頭撫で検出（複数回スパイク）
-  if (headPetDetected()) {
+  // IMU 加速度で激しいシェイク検出（→ 酔うリアクション）。頭撫でより先に判定する
+  if (shakeDetected()) {
+    dizzy_trigger();
+  }
+  // IMU 加速度で頭撫で検出（複数回スパイク）。酔っている間は抑制
+  if (!dizzy_active && headPetDetected()) {
     head_pet_trigger();
   }
-  // 頭撫で状態の自動解除
+  // 頭撫で / 酔い状態の自動解除
   head_pet_update();
+  dizzy_update();
 
   // アイドル時のランダムサーボ動作（4〜8秒間隔）
   idle_motion_tick();
