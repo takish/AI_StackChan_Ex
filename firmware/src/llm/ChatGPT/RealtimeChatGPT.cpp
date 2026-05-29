@@ -178,6 +178,8 @@ static void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
                 enterMutexAudio();
                 M5.Mic.end();
                 M5.Speaker.begin();
+                p_this->audioRingReset();      // 残量クリア & プリバッファやり直し
+                p_this->_flushPlayout = false;
                 p_this->speaking = true;
 #else
                 p_this->speaking = true;
@@ -237,15 +239,15 @@ static void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 
                 if(!isFuncCall){
 #ifndef REALTIME_API_WITH_TTS
-                    while (M5.Speaker.isPlaying()) { vTaskDelay(1); }
+                    // 残量を全部吐き出し、リングが空 かつ 再生完了まで待つ(末尾切れ防止)
+                    p_this->_flushPlayout = true;
+                    while (p_this->audioRingAvailable() > 0 || M5.Speaker.isPlaying()) { vTaskDelay(1); }
                     M5.Speaker.end();
                     M5.Mic.begin();
                     exitMutexAudio();
                     p_this->startRealtimeRecord();
 
-                    for(int i=0; i<2; i++){
-                        memset(p_this->audioBuf[i], 0, 100 * 1024);
-                    }
+                    p_this->audioRingReset();   // 次の応答に備えてリセット
                     p_this->speaking = false;
 #else
                     p_this->response_done = true;
