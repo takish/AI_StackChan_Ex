@@ -7,7 +7,7 @@
 
 namespace m5avatar {
 // 末尾追加で enum 互換維持
-enum class Expression { Happy, Angry, Sad, Doubt, Sleepy, Neutral, Embarrassed, HeartEyes, Surprised };
+enum class Expression { Happy, Angry, Sad, Doubt, Sleepy, Neutral, Embarrassed, HeartEyes, Surprised, Dizzy };
 }
 
 #endif  // EXPRESSION_H_
